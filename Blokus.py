@@ -10,16 +10,19 @@ def on_click(row, col, buttons):
 ### we have to later create the logic to check if the piece can be placed in the selected position
 def place_piece(selected_piece, row, col, buttons):
     piece = selected_piece
-
+    # First check if ALL blocks are inside the board
     for dr, dc in piece:
         r = row + dr
         c = col + dc
 
-        # Check board boundaries
-        if 0 <= r < 20 and 0 <= c < 20:
-            buttons[r][c].config(bg="red")
-        else:
+        if not (0 <= r < 20 and 0 <= c < 20):
             print("Piece goes out of bounds!")
+            return
+
+    for dr, dc in piece:
+        r = row + dr
+        c = col + dc
+        buttons[r][c].config(bg="red")
 
 def create_board():
     root = tk.Tk()
