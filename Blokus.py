@@ -1,56 +1,6 @@
 import tkinter as tk
 from functools import partial
 
-# We can use this to later handle the button to put the pieces
-# For now, it just prints the coordinates of the button clicked
-def on_click(row, col, buttons):
-    selected_piece = select_piece()
-    place_piece(selected_piece, row, col, buttons)
-
-### we have to later create the logic to check if the piece can be placed in the selected position
-def place_piece(selected_piece, row, col, buttons):
-    piece = selected_piece
-    # First check if ALL blocks are inside the board
-    for dr, dc in piece:
-        r = row + dr
-        c = col + dc
-
-        if not (0 <= r < 20 and 0 <= c < 20):
-            print("Piece goes out of bounds!")
-            return
-
-    for dr, dc in piece:
-        r = row + dr
-        c = col + dc
-        buttons[r][c].config(bg="red")
-
-def create_board():
-    root = tk.Tk()
-    root.title("Blokus 20x20 board")
-    buttons = []
-
-    for i in range(20):
-        row_buttons = []
-        for j in range(20):
-            btn = tk.Button(
-                root,
-                text=f"{i,j}",  # para tenerlo numerado
-                width=4,
-                height=1,
-                command=lambda r=i, c=j: on_click(r, c, buttons)
-            )
-            btn.grid(row=i, column=j)
-            row_buttons.append(btn)
-        buttons.append(row_buttons)
-
-    root.mainloop()
-    return buttons
-
-### we have to later create the pieces and the logic to select them.
-def select_piece():
-    # For now we just return the same piece, but we can later implement a UI to select different pieces just like the game
-    return pieces["three_L"]
-
 #### Here we define the pieces of the game, we can later add more pieces and also the logic to rotate and flip them.
 pieces = {
     "one": [(0, 0)],
@@ -61,5 +11,83 @@ pieces = {
     "three_line":     [(0, 0), (0, 1), (0, 2)],
     "three_L":        [(0, 0), (1, 0), (1, 1)]
 }
+
 #### Here we call the functions for the game
-board = create_board()
+class Game:
+    def __init__(self):
+        self.root = tk.Tk()
+        self.root.title("Blokus 20x20 board")
+
+        self.board = Board(self)   
+        self.players = [Player("red"), Player("blue"), Player("green"), Player("yellow")]
+        self.current_player = self.players[0]
+        self.selected_piece = "three_L"   # for now we just select one piece, but we can later implement a UI to select different pieces just like the game
+
+    def select_piece(self, piece_name):
+        self.selected_piece = piece_name
+
+    def on_click(self, row, col):
+        if self.selected_piece:
+            self.board.place_piece(self.selected_piece, row, col, self.current_player.color)
+
+    def start(self):
+        self.root.mainloop()
+    
+    def switch_player(self):
+        # Move to the next player in the list
+        index = self.players.index(self.current_player)
+        self.current_player = self.players[(index + 1) % len(self.players)]
+        print(f"Now it's {self.current_player.color}'s turn")
+
+class Board:
+    def __init__(self, game):
+        self.game = game
+        self.buttons = self.create_board()
+
+    def create_board(self):
+        buttons = []
+        for i in range(20):
+            row_buttons = []
+            for j in range(20):
+                btn = tk.Button(
+                    self.game.root,
+                    text=f"{i,j}",  # para tenerlo numerado
+                    width=4,
+                    height=1,
+                    command=lambda r=i, c=j: self.game.on_click(r, c)
+                )
+                btn.grid(row=i, column=j)
+                row_buttons.append(btn)
+            buttons.append(row_buttons)
+        return buttons
+
+    def place_piece(self, selected_piece, row, col, color):
+        piece = pieces[selected_piece]
+
+        
+        for dr, dc in piece:
+            r = row + dr
+            c = col + dc
+            if not (0 <= r < 20 and 0 <= c < 20):
+                print("Piece goes out of bounds!")
+                return
+
+        for dr, dc in piece:
+            r = row + dr
+            c = col + dc
+            self.buttons[r][c].config(bg=color)
+        self.game.switch_player()
+
+
+class Player:
+    def __init__(self, color):
+        self.color = color
+        self.pieces = ["one", "two_horizontal", "three_L"]
+
+    def select_piece(self):
+        # For now we just return the same piece, but we can later implement a UI to select different pieces just like the game
+        return pieces["three_L"]
+
+
+game = Game()
+game.start()
