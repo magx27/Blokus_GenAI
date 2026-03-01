@@ -4,7 +4,7 @@ from functools import partial
 # We can use this to later handle the button to put the pieces
 # For now, it just prints the coordinates of the button clicked
 def on_click(row, col):
-    print(f"Button clicked at ({row}, {col})")
+    place_piece("example_piece", row, col)
 
 def create_board():
     root = tk.Tk()
@@ -26,5 +26,13 @@ def create_board():
         buttons.append(row_buttons)
     root.mainloop()
 
+### we have to later create the pieces and the logic to select them.
+def select_piece(piece):
+    print(f"Selected piece: {piece}")
+
+### we have to later create the logic to check if the piece can be placed in the selected position
+def place_piece(piece, row, col):
+    print(f"Placing piece {piece} at ({row}, {col})")
+
 ####Here we call the functions for the game
-create_board()
+board = create_board()
