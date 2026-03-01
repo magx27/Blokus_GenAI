@@ -29,6 +29,7 @@ class Game:
     def on_click(self, row, col):
         if self.selected_piece:
             self.board.place_piece(self.selected_piece, row, col, self.current_player.color)
+            self.switch_player()
 
     def start(self):
         self.root.mainloop()
@@ -64,19 +65,28 @@ class Board:
     def place_piece(self, selected_piece, row, col, color):
         piece = pieces[selected_piece]
 
-        
+        # 1. Check bounds
         for dr, dc in piece:
             r = row + dr
             c = col + dc
             if not (0 <= r < 20 and 0 <= c < 20):
                 print("Piece goes out of bounds!")
-                return
+                return False
 
+        # 2. Check overlap
+        for dr, dc in piece:
+            r = row + dr
+            c = col + dc
+            if self.buttons[r][c]["bg"] != "SystemButtonFace":
+                print("Cell already occupied!")
+                return False
+
+        # 3. Place the piece
         for dr, dc in piece:
             r = row + dr
             c = col + dc
             self.buttons[r][c].config(bg=color)
-        self.game.switch_player()
+        return True
 
 
 class Player:
