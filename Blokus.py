@@ -21,15 +21,16 @@ class Game:
         self.board = Board(self)   
         self.players = [Player("red"), Player("blue"), Player("green"), Player("yellow")]
         self.current_player = self.players[0]
-        self.selected_piece = "one"   # for now we just select one piece, but we can later implement a UI to select different pieces just like the game
+        self.selected_piece = self.select_piece()   # for now we just select one piece, but we can later implement a UI to select different pieces just like the game
 
-    def select_piece(self, piece_name):
-        self.selected_piece = piece_name
+    def select_piece(self):
+        return Player.select_piece(self.current_player)
 
     def on_click(self, row, col):
         if self.selected_piece:
             if self.board.place_piece(self.selected_piece, row, col, self.current_player.color, self.current_player):
                 self.switch_player()
+                self.selected_piece = self.select_piece()  # Ask the next player to select a piece
 
     def start(self):
         self.root.mainloop()
@@ -138,12 +139,36 @@ class Board:
 class Player:
     def __init__(self, color):
         self.color = color
-        self.pieces = ["one", "two_horizontal", "three_L"]
+        self.pieces = ["one", "two_horizontal", "two_vertical", "three_L", "three_line"]
         self.has_played = False
+        self.selected_piece = None
 
     def select_piece(self):
-        # For now we just return the same piece, but we can later implement a UI to select different pieces just like the game
-        return pieces["three_L"]
+        # Create a popup window
+        selection_window = tk.Toplevel()
+        selection_window.title(f"{self.color.capitalize()} - Select Piece")
+
+        tk.Label(selection_window, text="Select a piece:").pack()
+
+        # When a button is clicked, store the piece and close the window
+        def choose(piece_name):
+            self.selected_piece = piece_name
+            selection_window.destroy()
+
+        tk.Button(selection_window, text="One", command=lambda: choose("one")).pack()
+        tk.Button(selection_window, text="Two Horizontal", command=lambda: choose("two_horizontal")).pack()
+        tk.Button(selection_window, text="Two Vertical", command=lambda: choose("two_vertical")).pack()
+        tk.Button(selection_window, text="Three L", command=lambda: choose("three_L")).pack()
+        tk.Button(selection_window, text="Three Line", command=lambda: choose("three_line")).pack()
+
+        # Wait until the user selects a piece
+        selection_window.grab_set()
+        selection_window.wait_window()
+
+        # Return the selected piece
+        return self.selected_piece
+
+        
 
 
 game = Game()
