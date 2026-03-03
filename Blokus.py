@@ -21,7 +21,7 @@ class Game:
         self.board = Board(self)   
         self.players = [Player("red"), Player("blue"), Player("green"), Player("yellow")]
         self.current_player = self.players[0]
-        self.selected_piece = self.select_piece()   # for now we just select one piece, but we can later implement a UI to select different pieces just like the game
+        self.selected_piece = self.current_player.select_piece()   # for now we just select one piece, but we can later implement a UI to select different pieces just like the game
 
     def select_piece(self):
         return Player.select_piece(self.current_player)
@@ -30,7 +30,11 @@ class Game:
         if self.selected_piece:
             if self.board.place_piece(self.selected_piece, row, col, self.current_player.color, self.current_player):
                 self.switch_player()
-                self.selected_piece = self.select_piece()  # Ask the next player to select a piece
+            else:
+        # Let the same player choose a new piece
+                print("Invalid move. Choose another piece.")
+                self.selected_piece = self.current_player.select_piece()
+
 
     def start(self):
         self.root.mainloop()
@@ -40,6 +44,7 @@ class Game:
         index = self.players.index(self.current_player)
         self.current_player = self.players[(index + 1) % len(self.players)]
         print(f"Now it's {self.current_player.color}'s turn")
+        self.selected_piece = self.current_player.select_piece()
 
 class Board:
     def __init__(self, game):
@@ -64,7 +69,10 @@ class Board:
         return buttons
 
     def place_piece(self, selected_piece, row, col, color, player):
+
+        
         piece = pieces[selected_piece]
+
 
         # 0. FIRST MOVE RULE: must cover ANY corner
         if not player.has_played:
@@ -112,6 +120,7 @@ class Board:
                     if 0 <= nr < 20 and 0 <= nc < 20:
                         if self.buttons[nr][nc]["bg"] == color:
                             print("Cannot touch your own piece on an edge!")
+                            
                             return False
 
                 # Corner neighbors (required)
@@ -147,6 +156,9 @@ class Player:
         # Create a popup window
         selection_window = tk.Toplevel()
         selection_window.title(f"{self.color.capitalize()} - Select Piece")
+        #make the window bigger
+        selection_window.geometry("150x200")
+        selection_window.configure(bg=self.color)
 
         tk.Label(selection_window, text="Select a piece:").pack()
 
