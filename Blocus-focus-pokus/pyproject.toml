@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "blokus-focus-pokus"
+version = "0.1.0"
+description = "Phase 1 Blokus Classic engine and CLI in plain Python."
+readme = "README.md"
+requires-python = ">=3.11"
+authors = [
+  { name = "Project Team" }
+]
+license = { text = "Proprietary" }
+dependencies = []
+
+[project.scripts]
+blokus = "blokus.cli:main"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
