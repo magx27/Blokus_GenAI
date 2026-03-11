@@ -1,0 +1,66 @@
+{
+  "name": "classic_corner_sequence",
+  "mode": "classic",
+  "moves": [
+    {
+      "player": "blue",
+      "piece": "I1",
+      "x": 0,
+      "y": 0
+    },
+    {
+      "player": "yellow",
+      "piece": "I1",
+      "x": 19,
+      "y": 0
+    },
+    {
+      "player": "red",
+      "piece": "I1",
+      "x": 19,
+      "y": 19
+    },
+    {
+      "player": "green",
+      "piece": "I1",
+      "x": 0,
+      "y": 19
+    },
+    {
+      "player": "blue",
+      "piece": "I2",
+      "x": 1,
+      "y": 1
+    },
+    {
+      "player": "yellow",
+      "piece": "I2",
+      "x": 17,
+      "y": 1
+    },
+    {
+      "player": "red",
+      "piece": "I2",
+      "x": 17,
+      "y": 18
+    },
+    {
+      "player": "green",
+      "piece": "I2",
+      "x": 1,
+      "y": 18
+    }
+  ],
+  "expect": {
+    "current_player": "blue",
+    "finished": false,
+    "history_length": 8,
+    "occupied_counts": {
+      "blue": 3,
+      "yellow": 3,
+      "red": 3,
+      "green": 3
+    }
+  }
+}
+

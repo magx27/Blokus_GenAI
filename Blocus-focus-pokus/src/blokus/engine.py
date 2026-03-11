@@ -1,0 +1,268 @@
+"""Core game rules, move generation, and scoring."""
+
+from blokus.config import Coordinate, get_mode_config
+from blokus.models import GameState, Move, ValidationResult
+from blokus.pieces import PIECES, PIECE_IDS, absolute_cells, piece_sort_key
+
+ORTHOGONAL_DELTAS = ((1, 0), (-1, 0), (0, 1), (0, -1))
+DIAGONAL_DELTAS = ((1, 1), (1, -1), (-1, 1), (-1, -1))
+
+
+def new_game(mode: str = "classic", controllers: dict[str, str] | None = None) -> GameState:
+    config = get_mode_config(mode)
+    board = [[None for _ in range(config.board_size)] for _ in range(config.board_size)]
+    controller_types = {
+        player: (controllers or {}).get(player, "human") for player in config.players
+    }
+    return GameState(
+        mode=mode,
+        board=board,
+        players=config.players,
+        start_corners=dict(config.start_corners),
+        remaining_pieces={player: set(PIECE_IDS) for player in config.players},
+        controller_types=controller_types,
+    )
+
+
+def board_in_bounds(state: GameState, x: int, y: int) -> bool:
+    return 0 <= x < state.board_size and 0 <= y < state.board_size
+
+
+def get_occupied_cells(state: GameState, player: str | None = None) -> set[Coordinate]:
+    occupied: set[Coordinate] = set()
+    for y, row in enumerate(state.board):
+        for x, cell in enumerate(row):
+            if cell is None:
+                continue
+            if player is None or cell == player:
+                occupied.add((x, y))
+    return occupied
+
+
+def is_first_move(state: GameState, player: str) -> bool:
+    return not any(cell == player for row in state.board for cell in row)
+
+
+def _has_edge_contact_with_player(state: GameState, player: str, cells: tuple[Coordinate, ...]) -> bool:
+    occupied = get_occupied_cells(state, player)
+    for x, y in cells:
+        for dx, dy in ORTHOGONAL_DELTAS:
+            if (x + dx, y + dy) in occupied:
+                return True
+    return False
+
+
+def _has_corner_contact_with_player(state: GameState, player: str, cells: tuple[Coordinate, ...]) -> bool:
+    occupied = get_occupied_cells(state, player)
+    for x, y in cells:
+        for dx, dy in DIAGONAL_DELTAS:
+            if (x + dx, y + dy) in occupied:
+                return True
+    return False
+
+
+def _validate_move(state: GameState, move: Move, enforce_turn: bool) -> ValidationResult:
+    if state.finished:
+        return ValidationResult(False, "The game is already finished.")
+    if move.player not in state.players:
+        return ValidationResult(False, f"Unknown player '{move.player}'.")
+    if enforce_turn and move.player != state.current_player:
+        return ValidationResult(
+            False,
+            f"It is {state.current_player}'s turn, not {move.player}'s turn.",
+        )
+    if move.piece not in PIECES:
+        return ValidationResult(False, f"Unknown piece '{move.piece}'.")
+    if move.piece not in state.remaining_pieces[move.player]:
+        return ValidationResult(
+            False,
+            f"Piece '{move.piece}' is no longer available for player '{move.player}'.",
+        )
+
+    cells = absolute_cells(
+        move.piece,
+        origin=(move.x, move.y),
+        rotation=move.rotation,
+        flipped=move.flipped,
+    )
+
+    for x, y in cells:
+        if not board_in_bounds(state, x, y):
+            return ValidationResult(False, "Move places at least one square outside the board.")
+        if state.board[y][x] is not None:
+            return ValidationResult(False, "Move overlaps an already occupied square.")
+
+    if is_first_move(state, move.player):
+        start_corner = state.start_corners[move.player]
+        if start_corner not in cells:
+            return ValidationResult(
+                False,
+                f"Opening move for {move.player} must cover start corner {start_corner}.",
+            )
+        return ValidationResult(True, "Legal opening move.")
+
+    if _has_edge_contact_with_player(state, move.player, cells):
+        return ValidationResult(
+            False,
+            "Pieces of the same color may not touch along an edge.",
+        )
+
+    if not _has_corner_contact_with_player(state, move.player, cells):
+        return ValidationResult(
+            False,
+            "Move must touch at least one same-color piece at a corner.",
+        )
+
+    return ValidationResult(True, "Legal move.")
+
+
+def validate_move(state: GameState, move: Move) -> ValidationResult:
+    return _validate_move(state, move, enforce_turn=True)
+
+
+def _next_player_index(state: GameState) -> int:
+    return (state.current_player_index + 1) % len(state.players)
+
+
+def _player_search_order(state: GameState, player: str) -> list[str]:
+    return sorted(state.remaining_pieces[player], key=piece_sort_key)
+
+
+def _anchor_cells(state: GameState, player: str) -> set[Coordinate]:
+    if is_first_move(state, player):
+        return {state.start_corners[player]}
+
+    occupied = get_occupied_cells(state, player)
+    anchors: set[Coordinate] = set()
+    for x, y in occupied:
+        for dx, dy in DIAGONAL_DELTAS:
+            anchor = (x + dx, y + dy)
+            ax, ay = anchor
+            if not board_in_bounds(state, ax, ay):
+                continue
+            if state.board[ay][ax] is not None:
+                continue
+            if _has_edge_contact_with_player(state, player, (anchor,)):
+                continue
+            anchors.add(anchor)
+    return anchors
+
+
+def list_legal_moves(
+    state: GameState,
+    player: str | None = None,
+    limit: int | None = None,
+) -> list[Move]:
+    active_player = player or state.current_player
+    if active_player not in state.players or state.finished:
+        return []
+
+    anchors = _anchor_cells(state, active_player)
+    legal_moves: list[Move] = []
+    seen: set[tuple[str, tuple[Coordinate, ...]]] = set()
+
+    for piece_id in _player_search_order(state, active_player):
+        for transform in PIECES[piece_id].transforms:
+            for anchor_x, anchor_y in anchors:
+                for cell_x, cell_y in transform.cells:
+                    origin_x = anchor_x - cell_x
+                    origin_y = anchor_y - cell_y
+                    absolute = tuple(
+                        sorted((origin_x + dx, origin_y + dy) for dx, dy in transform.cells)
+                    )
+                    key = (piece_id, absolute)
+                    if key in seen:
+                        continue
+                    seen.add(key)
+                    move = Move(
+                        player=active_player,
+                        piece=piece_id,
+                        x=origin_x,
+                        y=origin_y,
+                        rotation=transform.rotation,
+                        flipped=transform.flipped,
+                    )
+                    if _validate_move(state, move, enforce_turn=False).ok:
+                        legal_moves.append(move)
+                        if limit is not None and len(legal_moves) >= limit:
+                            return legal_moves
+    return legal_moves
+
+
+def _all_players_blocked(state: GameState) -> bool:
+    return all(not list_legal_moves(state, player=player, limit=1) for player in state.players)
+
+
+def apply_move(state: GameState, move: Move) -> GameState:
+    result = validate_move(state, move)
+    if not result.ok:
+        raise ValueError(result.reason)
+
+    new_state = state.clone()
+    cells = absolute_cells(
+        move.piece,
+        origin=(move.x, move.y),
+        rotation=move.rotation,
+        flipped=move.flipped,
+    )
+    for x, y in cells:
+        new_state.board[y][x] = move.player
+    new_state.remaining_pieces[move.player].remove(move.piece)
+    new_state.history.append(move)
+    new_state.current_player_index = _next_player_index(new_state)
+    new_state.consecutive_passes = 0
+    new_state.finished = _all_players_blocked(new_state)
+    return new_state
+
+
+def validate_pass(state: GameState, player: str | None = None) -> ValidationResult:
+    active_player = player or state.current_player
+    if state.finished:
+        return ValidationResult(False, "The game is already finished.")
+    if active_player != state.current_player:
+        return ValidationResult(
+            False,
+            f"It is {state.current_player}'s turn, not {active_player}'s turn.",
+        )
+    if list_legal_moves(state, player=active_player, limit=1):
+        return ValidationResult(False, "A player may only pass when no legal move exists.")
+    return ValidationResult(True, "Pass is legal.")
+
+
+def pass_turn(state: GameState, player: str | None = None) -> GameState:
+    active_player = player or state.current_player
+    result = validate_pass(state, player=active_player)
+    if not result.ok:
+        raise ValueError(result.reason)
+    new_state = state.clone()
+    new_state.current_player_index = _next_player_index(new_state)
+    new_state.consecutive_passes += 1
+    new_state.finished = new_state.consecutive_passes >= len(new_state.players) or _all_players_blocked(
+        new_state
+    )
+    return new_state
+
+
+def score_player(state: GameState, player: str) -> int:
+    remaining = sum(PIECES[piece_id].size for piece_id in state.remaining_pieces[player])
+    score = -remaining
+    if not state.remaining_pieces[player]:
+        score += 15
+        player_moves = [move for move in state.history if move.player == player]
+        if player_moves and player_moves[-1].piece == "I1":
+            score += 5
+    return score
+
+
+def compute_scores(state: GameState) -> dict[str, int]:
+    return {player: score_player(state, player) for player in state.players}
+
+
+def occupied_square_counts(state: GameState) -> dict[str, int]:
+    counts = {player: 0 for player in state.players}
+    for row in state.board:
+        for cell in row:
+            if cell is not None:
+                counts[cell] += 1
+    return counts
+
